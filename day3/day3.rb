@@ -137,6 +137,6 @@ END
 
 raise "test error 2 #{part_2(input)} != 467835" unless part_2(input) == 467835
 
-input = File.read("puzzle_input.txt")
+input = File.read("input.txt")
 puts part_1(input)
 puts part_2(input)

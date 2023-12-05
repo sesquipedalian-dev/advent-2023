@@ -82,6 +82,6 @@ raise "test error 1 #{part_1(input)} != 8" unless part_1(input) == 8
 
 raise "test error 2 #{part_2(input)} != 2286" unless part_2(input) == 2286
 
-input = File.read("puzzle_input.txt")
+input = File.read("input.txt")
 puts part_1(input)
 puts part_2(input)
