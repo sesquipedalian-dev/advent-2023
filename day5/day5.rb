@@ -44,7 +44,7 @@ def source_to_dest(source, range_info)
     # },
     # ]
 
-    range_info.inject([false, source]) do |found, range|
+    r = range_info.inject([false, source]) do |found, range|
         next found if found[0]
         
         in_range_offset = source - range[:source]
@@ -53,7 +53,9 @@ def source_to_dest(source, range_info)
         else
             found
         end
-    end[1]
+    end
+    
+    r[1]
 end
 
 def part_1(seeds, ranges)
@@ -65,8 +67,12 @@ def part_1(seeds, ranges)
     min_location
 end
 
-def part_2(input)
-
+def part_2(seeds, ranges)
+    # this is obviously not going to work for big inputs just on constructing the new seeds array
+    new_seeds = []
+    (0...seeds[1]).each { |i| new_seeds << (seeds[0] + i) }
+    (0...seeds[3]).each { |i| new_seeds << (seeds[2] + i) }
+    part_1(new_seeds, ranges)
 end
 
 
@@ -116,13 +122,9 @@ raise "test error 0.2 #{source_to_dest(0, ranges[0])}" unless source_to_dest(0, 
 raise "test error 0.3 #{source_to_dest(98, ranges[0])}" unless source_to_dest(98, ranges[0]) == 50
 raise "test error 1 #{part_1(seeds, ranges)} != 35" unless part_1(seeds, ranges) == 35
 
-# input = <<END
-
-# END
-
-# raise "test error 2 #{part_2(input)} != 30" unless part_2(input) == 30
+raise "test error 2 #{part_2(seeds, ranges)} != 46" unless part_2(seeds, ranges) == 46
 
 input = File.read("input.txt")
 seeds, ranges = parse(input)
 puts part_1(seeds, ranges)
-puts part_2(input)
+# puts part_2(seeds, ranges)
