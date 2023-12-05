@@ -1,16 +1,3 @@
-def parse(input)
-    # it should look like:
-    # {
-    #     'parts' : [
-    #         [xl, xr, y, number]
-    #     ]
-    #     'symbols': [
-    #         [[x, y], symbol]
-    #     ]
-    # }
-    
-end
-
 def matching_numbers(line)
     line = line.gsub(/Card\s+\d+:/, '')
     (winning_numbers, owned_numbers) = line.split(' | ').map{|nums| nums.split.map(&:to_i)}
