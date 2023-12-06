@@ -25,14 +25,51 @@ def parse(input)
         elsif line.start_with?(/\d/)
             (destination, source, length) = line.split.map(&:to_i)
             ranges[range_index] << {
-                source: source, 
-                destination: destination, 
-                length: length
+                sl: source, 
+                sr: source + length - 1,
+                dl: destination,
+                dr: destination + length - 1
             }
         end
     end
+
+    # order ranges 
+    ranges.each do |range_list| 
+        # order in source domain
+        range_list.sort_by!{|a| a[:sl]}
+
+        # insert a synthetic 0 - min range if not present
+        unless range_list.first[:sl] == 0
+            range_list.insert 0, {
+                sl: 0,
+                sr: range_list.first[:sl] - 1,
+                dl: 0,
+                dr: range_list.first[:sl] - 1
+            }
+        end
+
+        # insert additional synthetics to cover any other gaps between ranges
+        synthetic_ranges = []
+        (0...(range_list.size - 1)).each do |i|
+            next unless intersect?(range_list[i], range_list[i+1])
+
+            synthetic_ranges << {
+                sl: range_list[i][:sr] + 1,
+                sr: range_list[i+1][:sl] - 1,
+                dl: range_list[i][:sl] + 1,
+                dr: range_list[i+1][:sl] - 1,
+            }
+        end
+        synthetic_ranges.each{|sr| range_list.append(sr)}
+        range_list.sort_by!{|a| a[:sl]}
+    end
     
     [seeds, ranges]
+end
+
+def intersect?(lhs, rhs)
+    # if two ranges like [xl, len], [x, len] overlap, assume lhs < rhs
+    (lhs[:sl] <= rhs[:sl]) && (rhs[:sl] <= lhs[:sr])
 end
 
 def source_to_dest(source, range_info)
@@ -47,9 +84,8 @@ def source_to_dest(source, range_info)
     r = range_info.inject([false, source]) do |found, range|
         next found if found[0]
         
-        in_range_offset = source - range[:source]
-        if (0 <= in_range_offset) && (in_range_offset < range[:length])
-            [true, range[:destination] + in_range_offset]
+        if ( range[:sl] <= source) && (source <= range[:sr])
+            [true, range[:dl] + source - range[:sl]]
         else
             found
         end
@@ -68,13 +104,60 @@ def part_1(seeds, ranges)
 end
 
 def part_2(seeds, ranges)
-    # this is obviously not going to work for big inputs just on constructing the new seeds array
-    new_seeds = []
-    (0...seeds[1]).each { |i| new_seeds << (seeds[0] + i) }
-    (0...seeds[3]).each { |i| new_seeds << (seeds[2] + i) }
-    part_1(new_seeds, ranges)
-end
+    # construct new seed ranges, [source, length]
+    new_seeds = seeds.each_slice(2).map do |start, len|
+        {
+            sl: start,
+            sr: start + len - 1
+        }
+    end
 
+    # continually expand seed ranges into ranges in the destination space by looking for intersections
+    # e.g. 
+    # current seed range = [0, 50]
+    # next space source ranges: [0, 25], [25, 50]
+    # next iteration should expand seed range to [0, 25] AND [25, 25] with destination mapped 
+    # #
+    final_ranges = ranges.inject(new_seeds) do |current_seeds, range_list|
+        next_seeds = []
+        current_seeds.map do |seed|
+            # find intersecting range in r
+            while seed[:sl] <= seed[:sr]
+                range = range_list.find {|range| (range[:sl] <= seed[:sl]) && (seed[:sl] <= range[:sr]) }
+
+                unless range
+                    # if no range found it doesn't change in the next round
+                    next_seeds.append(seed)
+                    break
+                end
+
+                # if an intersecting range is found, 
+                # create a range up to the max of our current seed right or the target range's right, whichever is smaller
+                range_end = [range[:sr], seed[:sr]].min
+                range_start_offset = seed[:sl] - range[:sl]
+                len = range_end - seed[:sl] + 1
+                
+                next_seeds.append({
+                    sl: range[:dl] + range_start_offset,
+                    sr: range[:dl] + range_start_offset + len - 1
+                })
+
+                # next round we'll start from the range end + 1
+                seed = {
+                    sl: range_end + 1,
+                    sr: seed[:sr]
+                }
+            end
+        end
+
+        # iterate the next set of ranges
+        next_seeds.sort_by{|s| s[:sl]}
+    end
+
+    # now final ranges is a list of ranges in the final destination space,
+    # the goal of the puzzle is to find the lowest end of the lowest range
+    final_ranges.first[:sl]
+end
 
 input = <<END
 seeds: 79 14 55 13
@@ -127,4 +210,7 @@ raise "test error 2 #{part_2(seeds, ranges)} != 46" unless part_2(seeds, ranges)
 input = File.read("input.txt")
 seeds, ranges = parse(input)
 puts part_1(seeds, ranges)
-# puts part_2(seeds, ranges)
+
+# 248892167 is too high 
+# 7873084 is right :)
+puts part_2(seeds, ranges)
