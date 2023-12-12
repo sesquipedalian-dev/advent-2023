@@ -94,11 +94,6 @@ def part_1(input)
     coords_on_loop.keys.size / 2
 end
 
-ESCAPABLE = []
-TEMP_ESCAPABLE = []
-GRID = []
-ON_STACK = {}
-
 def part_2(input)
     start, grid = parse(input)
     coords_on_loop = calc_loop(start, grid)
@@ -169,106 +164,92 @@ def part_2(input)
         print "\n"
     end
 
-    GRID.clear
-    grid.each do |row|
-        grid_row = [] + row
-        GRID << grid_row
-    end
-
     coords_on_loop = calc_loop(start, grid)
 
-    # so this is a dynamic programming problem of a sort.
-    # we want to build up a map of coords that can escape to the outside of the grid
-    # these are not enclosed.
-    # we can start on the boundaries of the grid and work in so that we can use those border
-    # calculations to help the inner ones
+    # So this is a dynamic programming problem
+    # by sweeping through the grid traveling in one direction and only using 
+    # neighbor checks for escapable in the opposite direction, we guarantee
+    # that a node's left / north neighbors are processed before that node.
+    #
+    # to make sure we catch cases where the E / S neighbors would provide escape ,
+    # when we locate a node that IS, escapable, we traverse it's N/W neighbors
+    # that are NOT escapable to patch up any false negatives
 
-    # initialize escapable to 'undefined' for all grid points
-    ESCAPABLE.clear
-    TEMP_ESCAPABLE.clear
+    escapable = []
     grid.each_with_index do |row, _|
         e_row = []
-        t_row = []
         row.each_with_index do |_, _|
             e_row << nil
-            t_row << nil
         end
-        ESCAPABLE << e_row
-        TEMP_ESCAPABLE << t_row
-    end
+        escapable << e_row
+    end    
 
-    ON_STACK.clear
-    count = 0
     grid.each_with_index do |row, y|
-        print "\n"
         row.each_with_index do |_, x|
-            if coords_on_loop.key? [x, y]
-                print grid[y][x]
+            puts "grid_iter #{x} #{y}"
+            if coords_on_loop.key? [x,y]
+                # escapable[y][x] = nil
                 next
             end
 
-            # do not count entries that were inserted to account for 'squeezing between the pipes'
-            # these are either on an odd row or column number
-            is_fake = (y%2 == 1) || (x%2 ==1)
+            is_fake = (y%2 ==1) || (x%2 == 1)
 
-            # copy resolved ESCAPABLE array into TEMP
-            TEMP_ESCAPABLE.clear
-            ESCAPABLE.each do |row|
-                t_row = []
-                row.each do |i|
-                    t_row << i
-                end
-                TEMP_ESCAPABLE << t_row
+            neighbors_escapable = [N,W,S,E].map do |n|
+                new_x = x + n[0]
+                new_y = y + n[1]
+
+                out_of_bounds = new_x < 0 || new_x >= grid[0].size || new_y < 0 || new_y >= grid.size
+                next true if out_of_bounds
+
+                escapable[new_y][new_x]
             end
 
-            puts "recur start for #{x} #{y}"
-            escapable = part_2_recur(x, y, coords_on_loop ) #, log = ((y == 166) && (x==26)))
-            ESCAPABLE[y][x] = escapable
-            print (is_fake ? escapable ? 'E' : '&' : escapable ? "T" : "Q")
-            if !escapable && !is_fake
-                count += 1  
+            escapable[y][x] = neighbors_escapable.any?
+            if neighbors_escapable.any?
+                # navigate N and W neighbors that aren't escapable 
+                queue = [N,W].zip(neighbors_escapable).filter{|_, escapable| !escapable}.map{|n, _| [x + n[0], y + n[1]]}
+                while !queue.empty?
+                    new_x, new_y = queue.pop
+                    next if coords_on_loop.key? [new_x,new_y]
+                    # out_of_bounds = new_x < 0 || new_x >= grid[0].size || new_y < 0 || new_y >= grid.size
+                    # next if out_of_bounds
+
+                    escapable[new_y][new_x] = true
+                    [N,W,S,E].map{|n| [new_x, new_y].zip(n).map(&:sum)}
+                        .filter{|p| p != [x, y]}
+                        .filter{|x1, y1| !(x1 < 0 || x1 >= grid[0].size || y1 < 0 || y1 >= grid.size) }
+                        .filter{|p| !escapable[p[1]][p[0]]}
+                        .each {|p| queue.push p}
+                end
             end
         end
     end
-    print "\n"
+
+    # todo print escapable
+    count = 0
+    escapable.each_with_index do |row, y|
+        row.each_with_index do |c, x|
+            if (y%2 ==1) || (x%2 == 1)
+                # print escapable[y][x] ? '.' : 'X'
+                next
+            end
+
+            if escapable[y][x] == nil
+                print grid[y][x]
+                next
+             end
+            
+            if escapable[y][x]
+                print 'E'
+            else
+                count += 1
+                print 'Q'
+            end
+        end
+        print "\n"
+    end
 
     count
-end
-
-def part_2_recur(x, y, coords_on_loop, log=true)
-    puts "part_2_recur enter #{x} #{y} #{ESCAPABLE[y][x]}" if log
-    # return memoized value if available,
-    memoed = TEMP_ESCAPABLE[y][x]
-    return memoed if memoed != nil
-
-    # return false if part of the pipe loop
-    result = if coords_on_loop.key? [x, y]
-        false
-    else 
-        ON_STACK[[x,y]] = true
-        # check if any neighbors are escapable, if so we are too
-        # if not, we are not escapable
-        [N,S,E,W].any? do |n| 
-            new_x = x + n[0]
-            new_y = y + n[1]
-           
-            puts "skipping due to on stack? #{new_x} #{new_y} #{ON_STACK[[new_x, new_y]]}" if log
-            next false if ON_STACK[[new_x, new_y]]
-
-            out_of_bounds = new_x < 0 || new_x >= GRID[0].size || new_y < 0 || new_y >= GRID.size
-            puts "out of bounds? #{out_of_bounds}" if log
-            next true if out_of_bounds
-
-            puts "recursing from #{x} #{y} to #{new_x} #{new_y}" if log
-            part_2_recur(new_x, new_y, coords_on_loop, log)
-        end
-    end 
-
-    # memoize result and return
-    ON_STACK[[x,y]] = false
-    puts "escapable result #{x} #{y} #{result}" if log
-    TEMP_ESCAPABLE[y][x] = result
-    result
 end
 
 input = <<END
@@ -303,8 +284,8 @@ input = <<END
 .L--JL--J.
 ..........
 END
-# actual = part_2(input)
-# raise "test error 2.1 #{actual} != 4" if actual != 4
+actual = part_2(input)
+raise "test error 2.1 #{actual} != 4" if actual != 4
 
 input = <<END
 F---7..
@@ -314,8 +295,8 @@ F---7..
 |L---7.
 L----J.
 END
-# actual = part_2(input)
-# raise "test error 2.2 #{actual} != 0" if actual != 0
+actual = part_2(input)
+raise "test error 2.2 #{actual} != 0" if actual != 0
 
 input = <<END
 .F----7F7F7F7F-7....
@@ -329,8 +310,8 @@ L--J.L7...LJS7F-7L7.
 ....FJL-7.||.||||...
 ....L---J.LJ.LJLJ...
 END
-# actual = part_2(input)
-# raise "test error 2.3 #{actual} != 8" if actual != 8
+actual = part_2(input)
+raise "test error 2.3 #{actual} != 8" if actual != 8
 
 input = <<END
 FF7FSF7F7F7F7F7F---7
@@ -344,8 +325,8 @@ L---JF-JLJ.||-FJLJJ7
 L.L7LFJ|||||FJL7||LJ
 L7JLJL-JLJLJL--JLJ.L
 END
-# actual = part_2(input)
-# raise "test error 2.4 #{actual} != 10" if actual != 10
+actual = part_2(input)
+raise "test error 2.4 #{actual} != 10" if actual != 10
 
 input = <<END
 F---7
@@ -354,8 +335,8 @@ LJ.||
 F--J|
 L---S
 END
-# actual = part_2(input)
-# raise "test error 2.5 #{actual} != 0" if actual != 0
+actual = part_2(input)
+raise "test error 2.5 #{actual} != 0" if actual != 0
 
 input = <<END
 -F---S.
@@ -368,12 +349,9 @@ F---JL7
 |.....|
 L-----J
 END
-# actual = part_2(input)
-# raise "test error 2.6 #{actual} != 5" if actual != 5
+actual = part_2(input)
+raise "test error 2.6 #{actual} != 5" if actual != 5
 
 input = File.read("input.txt")
-# 6823
 puts part_1(input)
-# 587 is too high
-# 527 is too high
 puts part_2(input)
