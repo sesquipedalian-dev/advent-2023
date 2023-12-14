@@ -2,42 +2,69 @@ def parse(input)
 
 end
 
-MEMO = {}
-$used_memo_count = 0.0
-$total_count = 0.0
 def get_variants(data)
-    $total_count = $total_count + 1
-    if $total_count % 1000 == 0
-        puts "memo usage% #{$used_memo_count / $total_count}"
-    end
     i = data.index('?')
-    unless i
-        $used_memo_count += 1
-        MEMO[data] = [data]
-        return [data]
-    end
-    
-    return MEMO[data] if MEMO.key? data
+    return [data] unless i
 
-    vs = get_variants(data[0...i] + '.' + data[(i+1)..]) + get_variants(data[0...i] + '#' + data[(i+1)..])
-    MEMO[data] = vs
-    vs
+    get_variants(data[0...i] + '.' + data[(i+1)..]) + get_variants(data[0...i] + '#' + data[(i+1)..])
 end
 
 def part_1(input)
+    rejected = {} # [sequence of # lengths],[sequence of spec lengths] -> true
+    count = 0
+
     input.split(/\n/).map do |line|
         data, spec = line.split(/\s+/)
         spec = spec.split(',').map(&:to_i)
 
-        vs = get_variants(data)
-            .map{|vs| vs.split('.')}
-            .map{|vs| vs.filter{|g| !g.empty?}}
-            .map{|vs| vs.map{|g| g.size}}
+        # get_variants(data)
+        #   .map {|v| v.split('.')}
+        #   .map {|v| v.filter{|s| !s.empty?}}
+        #   .map {|v| v.map{|g| g.size}}
+        #   .count{|v| v == spec}
 
-        puts "checking line #{vs} #{spec} #{line}"
+        queue = vs.map{|v| [data, spec, 0]}
+        puts queue.map{|v, spec| "#{v}, #{spec}"}
+        while !queue.empty?
+            current = queue.shift
+            data, spec, i = current
+            puts "chcking #{current}"
 
-        vs.count {|v| v == spec}
-    end.sum
+            next if rejected[current]
+            
+            if current.all?{|a| a.empty?}
+                puts "counting"
+                count += 1
+                next
+            end
+
+            if spec.empty? && i != 0
+                rejected[current] = true
+                next
+            end
+
+            # and now wee account for the ?
+            # find the next character that could NOT be a '#' - .
+            # (for part 2 rolling over to the beginning x times, for part 1 the end terminates also0
+            # the length of ?/# sequence will determine how many variations there can be for this step
+            # e.g. need 2, length 4, 3 choices ('##..', '.##.', '..##')
+            # but we need product together the variations that different steps of the spec enjoy?
+            # e.g. ????? 2,2
+            # hm but this doesn't give room for the other ones in the sequence
+
+            next_sequence_spec = current[1][0]
+            if lhs != rhs
+                rejected[current] = true
+                next
+            end
+
+            current[0].shift
+            current[1].shift
+            queue.push(current)
+        end
+    end
+
+    count
 end
 
 def part_2(input)
@@ -75,4 +102,4 @@ raise "test error 2 #{actual} != 525152" unless part_2(input) == 525152
 
 input = File.read("input.txt")
 puts part_1(input)
-puts part_2(input)
+# puts part_2(input)
