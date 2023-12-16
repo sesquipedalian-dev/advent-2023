@@ -25,7 +25,16 @@ class Insert
     end
 
     def exec(hashmap)
-        hashmap
+        hash_key = hash(@label)
+        current_arr = hashmap[hash_key] || []
+        index = current_arr.index {|label, _| label == @label}
+        if index
+            current_arr.delete_at(index)
+            current_arr.insert(index, [label, @focal_length])
+        else
+            current_arr.push([label, @focal_length])
+        end
+        hashmap.merge(hash_key => current_arr)
     end
 end
 
@@ -38,7 +47,7 @@ class Remove
     def exec(hashmap)
         hash_key = hash(@label)
         new_arr = (hashmap[hash_key] || []).filter{|label, focal_length| label != @label}
-        hashmap.merge(hash_key: new_arr)
+        hashmap.merge(hash_key => new_arr)
     end
 end
 
@@ -52,19 +61,28 @@ def print_hash(hash)
     puts "\n"
 end
 
+def focusing_power(hash)
+    hash.keys.map do |k|
+        hash[k].map.with_index do |(_, focal_length), slot|
+            (k+1) * (slot + 1) * focal_length
+        end.sum
+    end.sum
+end
+
 def part_2(input)
     initialization_steps = input.split(',')
         .map{|s| s.gsub(/\n/, '')}
         .map do |d|
-            label, op, focal_length = d.split(/=|-/)
-            op == '=' ? Insert.new(label, focal_length) : Remove.new(label)
+            label, op, focal_length = d.split(/(=|-)/)
+            op == '=' ? Insert.new(label, focal_length.to_i) : Remove.new(label)
         end
 
     hash = {}
     initialization_steps.each do |step| 
         hash = step.exec(hash)
-        print_hash(hash)
     end
+
+    focusing_power(hash)
 end
 
 input = <<END
@@ -78,4 +96,4 @@ raise "test error 2 #{actual} != 145" unless actual == 145
 
 input = File.read("input.txt")
 puts part_1(input)
-# puts part_2(input)
+puts part_2(input)
